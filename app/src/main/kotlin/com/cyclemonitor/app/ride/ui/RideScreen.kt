@@ -35,12 +35,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyclemonitor.app.di.AppContainer
 import com.cyclemonitor.app.di.ViewModelFactory
 import com.cyclemonitor.app.map.RideMapPanel
+import com.cyclemonitor.app.map.RiderPosition
+import com.cyclemonitor.app.ride.service.RideRecordingService
 import com.cyclemonitor.app.theme.CycleColors
 import com.cyclemonitor.core.model.DashboardMetric
 
 private fun hasLocationPermission(context: Context): Boolean =
-    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-        PackageManager.PERMISSION_GRANTED
+    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
 @Composable
 fun RideScreen(container: AppContainer) {
@@ -50,6 +51,10 @@ fun RideScreen(container: AppContainer) {
     )
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val position by viewModel.riderPosition.collectAsStateWithLifecycle()
+    val routeSamples by RideRecordingService.trackSamples.collectAsStateWithLifecycle()
+    val route = remember(routeSamples) {
+        routeSamples.map { RiderPosition(it.latitude, it.longitude, it.bearingDegrees) }
+    }
 
     var permissionGranted by remember { mutableStateOf(hasLocationPermission(context)) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -65,9 +70,9 @@ fun RideScreen(container: AppContainer) {
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     if (isLandscape) {
-        RideDashboardLandscape(state, position, viewModel)
+        RideDashboardLandscape(state, position, route, viewModel)
     } else {
-        RideDashboardPortrait(state, position, viewModel)
+        RideDashboardPortrait(state, position, route, viewModel)
     }
 }
 
@@ -75,11 +80,7 @@ fun RideScreen(container: AppContainer) {
 private fun LocationPermissionRequest(onRequest: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "Cycle Monitor needs location access to track your rides.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = CycleColors.TextPrimary,
-            )
+            Text("Cycle Monitor needs location access to track your rides.", style = MaterialTheme.typography.bodyLarge, color = CycleColors.TextPrimary)
             Spacer(Modifier.height(16.dp))
             Button(onClick = onRequest) { Text("Grant location access") }
         }
@@ -89,7 +90,8 @@ private fun LocationPermissionRequest(onRequest: () -> Unit) {
 @Composable
 private fun RideDashboardLandscape(
     state: RideUiState,
-    position: com.cyclemonitor.app.map.RiderPosition?,
+    position: RiderPosition?,
+    route: List<RiderPosition>,
     viewModel: RideViewModel,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -106,7 +108,7 @@ private fun RideDashboardLandscape(
                 )
             }
             Column(modifier = Modifier.weight(1.3f).padding(16.dp)) {
-                RideMapPanel(position = position, modifier = Modifier.weight(1f))
+                RideMapPanel(position = position, route = route, modifier = Modifier.weight(1f))
                 Spacer(Modifier.height(12.dp))
                 RideControls(
                     state = state.rideState,
@@ -137,11 +139,12 @@ private fun RideDashboardLandscape(
 @Composable
 private fun RideDashboardPortrait(
     state: RideUiState,
-    position: com.cyclemonitor.app.map.RiderPosition?,
+    position: RiderPosition?,
+    route: List<RiderPosition>,
     viewModel: RideViewModel,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        RideMapPanel(position = position, modifier = Modifier.fillMaxWidth().weight(1f))
+        RideMapPanel(position = position, route = route, modifier = Modifier.fillMaxWidth().weight(1f))
         Row(modifier = Modifier.fillMaxWidth().weight(1.2f)) {
             SpeedGauge(
                 displaySpeed = state.displaySpeed,
