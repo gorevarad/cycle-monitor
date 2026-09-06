@@ -12,6 +12,7 @@ import com.cyclemonitor.app.CycleMonitorApplication
 import com.cyclemonitor.app.MainActivity
 import com.cyclemonitor.app.R
 import com.cyclemonitor.core.location.LocationProvider
+import com.cyclemonitor.core.model.LocationSample
 import com.cyclemonitor.core.model.RideDetail
 import com.cyclemonitor.core.model.RideSummary
 import com.cyclemonitor.core.model.TrackPoint
@@ -27,16 +28,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-/**
- * Foreground service that owns the live ride: it is the single source of truth for ride state
- * while a ride is active, independent of whatever the UI is doing. The dashboard/map can crash,
- * rotate, or be backgrounded without interrupting recording; only this service and [RideEngine]
- * need to be alive.
- *
- * Only one ride can be active at a time, so ride state is exposed as process-wide [StateFlow]s
- * rather than through a bound-service interface -- simpler, and sufficient for a single-rider
- * cycling computer.
- */
+/** Foreground service owning the live ride independently from the Compose UI lifecycle. */
 class RideRecordingService : LifecycleService() {
 
     private lateinit var locationProvider: LocationProvider
@@ -75,20 +67,19 @@ class RideRecordingService : LifecycleService() {
         trackPoints.clear()
         isAutoPaused = false
         belowThresholdSinceMillis = null
+        _liveStats.value = null
+        _currentSample.value = null
+        _trackSamples.value = emptyList()
 
-        // Android requires startForeground() to follow startForegroundService() almost
-        // immediately, so this happens synchronously with a generic message rather than waiting
-        // on the settings read below.
-        startForeground(NOTIFICATION_ID, buildNotification("Starting..."))
+        startForeground(NOTIFICATION_ID, buildNotification("Starting…"))
         acquireWakeLock()
 
         lifecycleScope.launch {
-            // Rider/bike parameters and accuracy mode are captured once at ride start; changing
-            // them mid-ride would retroactively skew a physics model that assumes a fixed mass,
-            // so Settings changes take effect on the *next* ride rather than live-patching this one.
             val settings = app.container.settingsRepository.settings.first()
-
-            rideEngine = RideEngine(riderProfile = settings.riderProfile, powerEstimator = app.container.powerEstimator)
+            rideEngine = RideEngine(
+                riderProfile = settings.riderProfile,
+                powerEstimator = app.container.powerEstimator,
+            )
             locationProvider = app.container.createLocationProvider(
                 useMock = settings.useMockLocationForDevelopment,
                 accuracyMode = settings.locationAccuracyMode,
@@ -103,6 +94,14 @@ class RideRecordingService : LifecycleService() {
                     trackPoints += result.trackPoint
                     _liveStats.value = result.liveStats
                     _currentSample.value = sample
+                    // The map only needs the geographic track, not the full domain TrackPoint.
+                    // Keep a bounded UI snapshot so a long ride cannot cause unbounded Compose
+                    // recompositions or memory pressure in the dashboard.
+                    val samples = trackPoints.asSequence()
+                        .map { it.sample }
+                        .takeLast(MAX_LIVE_TRACK_POINTS)
+                        .toList()
+                    _trackSamples.value = samples
 
                     if (settings.autoPauseEnabled) {
                         handleAutoPause(result.liveStats, sample.timestampMillis)
@@ -157,21 +156,22 @@ class RideRecordingService : LifecycleService() {
         _rideState.value = RideStateMachine.transition(_rideState.value, RideState.Finishing)
 
         lifecycleScope.launch {
+            locationJob?.cancel()
+            checkpointJob?.cancel()
             checkpointToDatabase(application as CycleMonitorApplication, final = true)
             _rideState.value = RideStateMachine.transition(_rideState.value, RideState.Completed)
             lastCompletedRideId.value = rideId
 
-            locationJob?.cancel()
-            checkpointJob?.cancel()
             releaseWakeLock()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
 
-            // Reset to Idle so a new ride can be started; the just-finished ride's id remains
-            // available via lastCompletedRideId for the UI to navigate to its summary.
             _rideState.value = RideStateMachine.transition(RideState.Completed, RideState.Idle)
             _liveStats.value = null
             _currentSample.value = null
+            _trackSamples.value = emptyList()
+            trackPoints.clear()
+            rideEngine = null
         }
     }
 
@@ -239,8 +239,10 @@ class RideRecordingService : LifecycleService() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        locationJob?.cancel()
+        checkpointJob?.cancel()
         releaseWakeLock()
+        super.onDestroy()
     }
 
     companion object {
@@ -249,7 +251,8 @@ class RideRecordingService : LifecycleService() {
         private const val AUTO_PAUSE_SPEED_THRESHOLD_MPS = 0.5
         private const val AUTO_RESUME_SPEED_THRESHOLD_MPS = 1.5
         private const val AUTO_PAUSE_DELAY_MILLIS = 8_000L
-        private const val MAX_WAKE_LOCK_DURATION_MILLIS = 6 * 60 * 60 * 1000L // 6h safety cap
+        private const val MAX_WAKE_LOCK_DURATION_MILLIS = 6 * 60 * 60 * 1000L
+        private const val MAX_LIVE_TRACK_POINTS = 2_000
 
         const val ACTION_START = "com.cyclemonitor.app.action.START_RIDE"
         const val ACTION_PAUSE = "com.cyclemonitor.app.action.PAUSE_RIDE"
@@ -262,8 +265,11 @@ class RideRecordingService : LifecycleService() {
         private val _liveStats = MutableStateFlow<RideLiveStats?>(null)
         val liveStats = _liveStats.asStateFlow()
 
-        private val _currentSample = MutableStateFlow<com.cyclemonitor.core.model.LocationSample?>(null)
+        private val _currentSample = MutableStateFlow<LocationSample?>(null)
         val currentSample = _currentSample.asStateFlow()
+
+        private val _trackSamples = MutableStateFlow<List<LocationSample>>(emptyList())
+        val trackSamples = _trackSamples.asStateFlow()
 
         val lastCompletedRideId = MutableStateFlow<String?>(null)
 
