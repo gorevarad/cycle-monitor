@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,30 +32,30 @@ import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 
 data class RiderPosition(val latitude: Double, val longitude: Double, val bearingDegrees: Float?)
 
-/**
- * The dashboard's center map panel. Shows a real Google Map with the rider's current position
- * when a Maps API key is configured ([MapAvailability.isConfigured]); otherwise shows an honest
- * "map unavailable" placeholder rather than a blank/broken view. Ride recording never depends on
- * this composable at all -- it can fail or never render without affecting the ride.
- */
 @Composable
 fun RideMapPanel(
     position: RiderPosition?,
+    route: List<RiderPosition> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     if (!MapAvailability.isConfigured) {
         MapUnavailablePlaceholder(modifier)
         return
     }
-    GoogleMapContent(position, modifier)
+    GoogleMapContent(position, route, modifier)
 }
 
 @Composable
-private fun GoogleMapContent(position: RiderPosition?, modifier: Modifier) {
+private fun GoogleMapContent(
+    position: RiderPosition?,
+    route: List<RiderPosition>,
+    modifier: Modifier,
+) {
     val defaultLatLng = remember { LatLng(0.0, 0.0) }
     val cameraPositionState = rememberCameraPositionState {
         this.position = CameraPosition.fromLatLngZoom(defaultLatLng, 16f)
@@ -79,16 +79,20 @@ private fun GoogleMapContent(position: RiderPosition?, modifier: Modifier) {
                 mapToolbarEnabled = false,
             ),
         ) {
+            if (route.size >= 2) {
+                Polyline(
+                    points = route.map { LatLng(it.latitude, it.longitude) },
+                    width = 8f,
+                )
+            }
             position?.let { p ->
-                // A fresh MarkerState keyed on the coordinates (rather than rememberMarkerState,
-                // which only honors its initial position) so the marker actually moves as the
-                // rider's position updates.
-                val markerState = remember(p.latitude, p.longitude) { MarkerState(position = LatLng(p.latitude, p.longitude)) }
+                val markerState = remember(p.latitude, p.longitude) {
+                    MarkerState(position = LatLng(p.latitude, p.longitude))
+                }
                 Marker(
                     state = markerState,
                     rotation = p.bearingDegrees ?: 0f,
                     flat = true,
-                    // Center-anchored so rotation pivots on the rider's position rather than a pin tip.
                     anchor = Offset(0.5f, 0.5f),
                     icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_CYAN),
                 )
@@ -122,11 +126,7 @@ private fun MapUnavailablePlaceholder(modifier: Modifier = Modifier) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Filled.Map, contentDescription = null, tint = CycleColors.TextSecondary)
             Text("MAP UNAVAILABLE", color = CycleColors.TextSecondary, style = MaterialTheme.typography.labelLarge)
-            Text(
-                "No Maps API key configured",
-                color = CycleColors.TextDisabled,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Text("No Maps API key configured", color = CycleColors.TextDisabled, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
