@@ -15,4 +15,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "CycleMonitor"
+include(":core")
 include(":app")
