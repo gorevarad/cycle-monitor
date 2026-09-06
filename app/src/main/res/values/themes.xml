@@ -1,0 +1,11 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Compose owns all real theming (see theme/Theme.kt); this XML theme only needs to exist
+         so the manifest and the system splash have a valid, dark, edge-to-edge starting point
+         before the first Compose frame draws. -->
+    <style name="Theme.CycleMonitor" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/background_charcoal</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+    </style>
+</resources>

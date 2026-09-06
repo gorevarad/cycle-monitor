@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A minimal speedometer arc + needle mark, matching the app's instrument-cluster aesthetic. -->
+    <path
+        android:strokeColor="#39D6E0"
+        android:strokeWidth="6"
+        android:pathData="M30,72 A24,24 0 1 1 78,72"
+        android:fillColor="#00000000" />
+    <path
+        android:fillColor="#F5F7F8"
+        android:pathData="M54,54 L70,38 L58,58 Z" />
+    <path
+        android:fillColor="#39D6E0"
+        android:pathData="M54,50 m-4,0 a4,4 0 1 1 8,0 a4,4 0 1 1 -8,0" />
+</vector>
