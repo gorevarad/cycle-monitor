@@ -11,4 +11,5 @@ import com.cyclemonitor.app.BuildConfig
  */
 object MapAvailability {
     val isConfigured: Boolean get() = BuildConfig.MAPS_CONFIGURED
+    val apiKey: String get() = BuildConfig.MAPS_API_KEY
 }

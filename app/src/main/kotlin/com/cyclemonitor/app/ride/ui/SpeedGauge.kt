@@ -1,7 +1,5 @@
 package com.cyclemonitor.app.ride.ui
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,11 +31,7 @@ fun SpeedGauge(
     modifier: Modifier = Modifier,
 ) {
     val fraction = ((displaySpeed ?: 0.0) / maxScale).toFloat().coerceIn(0f, 1f)
-    val animatedFraction by animateFloatAsState(
-        targetValue = fraction,
-        animationSpec = tween(durationMillis = gaugeAnimationDurationMillis(animationIntensity)),
-        label = "speedGaugeFraction",
-    )
+    val animatedFraction = rememberCalibratedGaugeFraction(fraction, animationIntensity)
 
     Box(modifier = modifier.aspectRatio(1f), contentAlignment = Alignment.Center) {
         CircularGaugeArc(

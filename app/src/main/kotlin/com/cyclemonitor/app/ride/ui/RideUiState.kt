@@ -1,5 +1,6 @@
 package com.cyclemonitor.app.ride.ui
 
+import com.cyclemonitor.app.data.settings.MapStyle
 import com.cyclemonitor.core.model.AnimationIntensity
 import com.cyclemonitor.core.model.DashboardMetric
 import com.cyclemonitor.core.model.GpsQuality
@@ -40,6 +41,7 @@ data class RideUiState(
     val powerGaugeMaxWatts: Int,
     val animationIntensity: AnimationIntensity,
     val accentColorArgb: Int,
+    val mapStyle: MapStyle,
 ) {
     val isRiding: Boolean get() = rideState is RideState.Riding
     val isPaused: Boolean get() = rideState is RideState.Paused
@@ -71,6 +73,7 @@ data class RideUiState(
             powerGaugeMaxWatts = 400,
             animationIntensity = AnimationIntensity.STANDARD,
             accentColorArgb = 0xFF39D6E0.toInt(),
+            mapStyle = MapStyle.STANDARD,
         )
     }
 }

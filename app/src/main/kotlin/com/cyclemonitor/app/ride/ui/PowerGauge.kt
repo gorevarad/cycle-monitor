@@ -1,7 +1,5 @@
 package com.cyclemonitor.app.ride.ui
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,11 +42,7 @@ fun PowerGauge(
     modifier: Modifier = Modifier,
 ) {
     val fraction = ((displayPowerWatts ?: 0.0) / maxScaleWatts).toFloat().coerceIn(0f, 1f)
-    val animatedFraction by animateFloatAsState(
-        targetValue = fraction,
-        animationSpec = tween(durationMillis = gaugeAnimationDurationMillis(animationIntensity)),
-        label = "powerGaugeFraction",
-    )
+    val animatedFraction = rememberCalibratedGaugeFraction(fraction, animationIntensity)
     val gaugeColor = if (confidence == EstimationConfidence.LOW) CycleColors.TextDisabled else accentColor
 
     Box(modifier = modifier.aspectRatio(1f), contentAlignment = Alignment.Center) {

@@ -23,6 +23,10 @@ interface RideDao {
 
     @Query("UPDATE rides SET name = :newName WHERE id = :rideId")
     suspend fun rename(rideId: String, newName: String)
+
+    /** Used by the Data Retention setting -- deletes rides that finished before [cutoffMillis]. */
+    @Query("DELETE FROM rides WHERE endTimeMillis < :cutoffMillis")
+    suspend fun deleteOlderThan(cutoffMillis: Long)
 }
 
 @Dao

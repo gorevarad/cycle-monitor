@@ -3,24 +3,33 @@ package com.cyclemonitor.app.ride.ui
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.cyclemonitor.app.data.settings.UserSettings
+import com.cyclemonitor.app.data.repository.DashboardProfileRepository
 import com.cyclemonitor.app.data.settings.SettingsRepository
+import com.cyclemonitor.app.data.settings.UserSettings
 import com.cyclemonitor.app.map.RiderPosition
 import com.cyclemonitor.app.ride.service.RideRecordingService
 import com.cyclemonitor.core.model.DashboardProfile
+import com.cyclemonitor.core.model.GpsQuality
+import com.cyclemonitor.core.power.EstimationConfidence
 import com.cyclemonitor.core.ride.RideLiveStats
 import com.cyclemonitor.core.ride.RideState
 import com.cyclemonitor.core.smoothing.DisplaySmoother
 import com.cyclemonitor.core.smoothing.TimeWindowAverage
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+private val FALLBACK_PROFILE = DashboardProfile.defaultRoadProfile("road", 0xFF39D6E0.toInt())
 
 class RideViewModel(
     private val appContext: Context,
     private val settingsRepository: SettingsRepository,
+    private val dashboardProfileRepository: DashboardProfileRepository,
 ) : ViewModel() {
 
     // Smoothing state is owned here (display layer), not in the recording service: the service's
@@ -30,23 +39,52 @@ class RideViewModel(
     private val power3sWindow = TimeWindowAverage(windowSeconds = 3.0)
     private var lastStatsTimestamp: Long? = null
 
+    private val activeDashboardProfile: StateFlow<DashboardProfile> = combine(
+        dashboardProfileRepository.observeProfiles(),
+        settingsRepository.settings,
+    ) { profiles, settings -> profiles.find { it.id == settings.dashboardProfileId } ?: FALLBACK_PROFILE }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FALLBACK_PROFILE)
+
     val uiState: StateFlow<RideUiState> = combine(
         RideRecordingService.rideState,
         RideRecordingService.liveStats,
         settingsRepository.settings,
-    ) { state, stats, settings -> buildUiState(state, stats, settings) }
+        activeDashboardProfile,
+    ) { state, stats, settings, profile -> buildUiState(state, stats, settings, profile) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RideUiState.initial())
 
     val riderPosition: StateFlow<RiderPosition?> = RideRecordingService.currentSample
         .map { sample -> sample?.let { RiderPosition(it.latitude, it.longitude, it.bearingDegrees) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /** Snapshot of the last non-idle [uiState] captured while FINISHING/COMPLETED, since stats
+     * reset to null once the service returns to IDLE -- see RideTransitionOverlays.kt. */
+    private val _finishSummary = MutableStateFlow<RideUiState?>(null)
+    val finishSummary: StateFlow<RideUiState?> = _finishSummary.asStateFlow()
+
+    val lastCompletedRideId: StateFlow<String?> = RideRecordingService.lastCompletedRideId
+
+    init {
+        viewModelScope.launch {
+            uiState.collect { state ->
+                if (state.rideState is RideState.Finishing || state.rideState is RideState.Completed) {
+                    _finishSummary.value = state
+                }
+            }
+        }
+    }
+
+    fun acknowledgeRideFinished() {
+        _finishSummary.value = null
+        RideRecordingService.lastCompletedRideId.value = null
+    }
+
     fun onStartRide() = RideRecordingService.start(appContext)
     fun onPauseRide() = RideRecordingService.pause(appContext)
     fun onResumeRide() = RideRecordingService.resume(appContext)
     fun onFinishRide() = RideRecordingService.finish(appContext)
 
-    private fun buildUiState(state: RideState, stats: RideLiveStats?, settings: UserSettings): RideUiState {
+    private fun buildUiState(state: RideState, stats: RideLiveStats?, settings: UserSettings, profile: DashboardProfile): RideUiState {
         if (stats == null || state == RideState.Idle) {
             speedSmoother.reset()
             powerSmoother.reset()
@@ -68,8 +106,6 @@ class RideViewModel(
         }
         lastStatsTimestamp = stats?.timestampMillis
 
-        val profile = dashboardProfileFor(settings.dashboardProfileId)
-
         return RideUiState(
             rideState = state,
             speedUnit = settings.speedUnit,
@@ -87,24 +123,15 @@ class RideViewModel(
             power3sAvgWatts = power3sAvg,
             averagePowerWatts = stats?.averagePowerWatts,
             maxPowerWatts = stats?.maxPowerWatts,
-            powerConfidence = stats?.currentPower?.confidence ?: com.cyclemonitor.core.power.EstimationConfidence.UNAVAILABLE,
-            gpsQuality = stats?.gpsQuality ?: com.cyclemonitor.core.model.GpsQuality.UNAVAILABLE,
+            powerConfidence = stats?.currentPower?.confidence ?: EstimationConfidence.UNAVAILABLE,
+            gpsQuality = stats?.gpsQuality ?: GpsQuality.UNAVAILABLE,
             gpsAccuracyMeters = stats?.gpsAccuracyMeters,
             visibleMetrics = profile.metrics,
             speedGaugeMaxKmh = profile.speedGaugeMaxKmh,
             powerGaugeMaxWatts = profile.powerGaugeMaxWatts,
             animationIntensity = settings.animationIntensity,
             accentColorArgb = profile.accentColorArgb,
+            mapStyle = settings.mapStyle,
         )
-    }
-
-    private fun dashboardProfileFor(id: String): DashboardProfile {
-        val accent = 0xFF39D6E0.toInt()
-        return when (id) {
-            "climb" -> DashboardProfile.climbProfile(id, accent)
-            "race" -> DashboardProfile.raceProfile(id, accent)
-            "casual" -> DashboardProfile.casualProfile(id, accent)
-            else -> DashboardProfile.defaultRoadProfile("road", accent)
-        }
     }
 }

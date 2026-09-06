@@ -2,6 +2,8 @@ package com.cyclemonitor.app.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.cyclemonitor.app.data.settings.DataRetention
+import com.cyclemonitor.app.data.settings.MapStyle
 import com.cyclemonitor.app.data.settings.SettingsRepository
 import com.cyclemonitor.app.data.settings.ThemePreference
 import com.cyclemonitor.app.data.settings.UserSettings
@@ -32,6 +34,8 @@ class SettingsViewModel(private val repository: SettingsRepository) : ViewModel(
     fun setAutoPauseEnabled(enabled: Boolean) = viewModelScope.launch { repository.updateAutoPauseEnabled(enabled) }
     fun setDashboardProfileId(id: String) = viewModelScope.launch { repository.updateDashboardProfileId(id) }
     fun setUseMockLocation(enabled: Boolean) = viewModelScope.launch { repository.updateUseMockLocationForDevelopment(enabled) }
+    fun setDataRetention(retention: DataRetention) = viewModelScope.launch { repository.updateDataRetention(retention) }
+    fun setMapStyle(style: MapStyle) = viewModelScope.launch { repository.updateMapStyle(style) }
 
     fun setRiderWeightKg(kg: Double) = updateRiderProfile { it.copy(riderWeightKg = kg) }
     fun setBikeWeightKg(kg: Double) = updateRiderProfile { it.copy(bikeWeightKg = kg) }

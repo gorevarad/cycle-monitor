@@ -33,6 +33,9 @@ android {
 
         manifestPlaceholders["mapsApiKey"] = mapsApiKey
         buildConfigField("boolean", "MAPS_CONFIGURED", (mapsApiKey.isNotBlank()).toString())
+        // Also exposed as a plain string so app code (Directions API calls) can use the same key
+        // the Maps SDK meta-data uses, without re-reading local.properties at runtime.
+        buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
     }
 
     buildTypes {

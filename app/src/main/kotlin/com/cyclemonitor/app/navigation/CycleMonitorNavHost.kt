@@ -16,6 +16,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.cyclemonitor.app.dashboard.DashboardCustomizationScreen
 import com.cyclemonitor.app.di.AppContainer
 import com.cyclemonitor.app.flex.FlexScreen
 import com.cyclemonitor.app.history.HistoryScreen
@@ -47,7 +48,11 @@ fun CycleMonitorNavHost(container: AppContainer) {
             startDestination = Screen.Ride.route,
             modifier = Modifier.padding(padding),
         ) {
-            composable(Screen.Ride.route) { RideScreen(container) }
+            composable(Screen.Ride.route) {
+                RideScreen(container, onNavigateToRideDetail = { rideId ->
+                    navController.navigate(Screen.RideDetail.createRoute(rideId))
+                })
+            }
             composable(Screen.History.route) {
                 HistoryScreen(container, onOpenRide = { rideId ->
                     navController.navigate(Screen.RideDetail.createRoute(rideId))
@@ -62,7 +67,10 @@ fun CycleMonitorNavHost(container: AppContainer) {
             }
             composable(Screen.PersonalRecords.route) { PersonalRecordsScreen(container) }
             composable(Screen.Flex.route) { FlexScreen(container) }
-            composable(Screen.Settings.route) { SettingsScreen(container) }
+            composable(Screen.Settings.route) {
+                SettingsScreen(container, onOpenDashboardCustomization = { navController.navigate(Screen.DashboardCustomization.route) })
+            }
+            composable(Screen.DashboardCustomization.route) { DashboardCustomizationScreen(container) }
         }
     }
 }

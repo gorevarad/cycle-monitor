@@ -40,6 +40,10 @@ class RoomRideRepository(
     override suspend fun renameRide(rideId: String, newName: String) {
         rideDao.rename(rideId, newName)
     }
+
+    override suspend fun deleteRidesOlderThan(cutoffMillis: Long) {
+        rideDao.deleteOlderThan(cutoffMillis)
+    }
 }
 
 private fun RideEntity.toDomain() = RideSummary(

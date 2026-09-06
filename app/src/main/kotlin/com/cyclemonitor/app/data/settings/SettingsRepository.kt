@@ -22,6 +22,15 @@ private val Context.dataStore by preferencesDataStore(name = "cycle_monitor_sett
 
 enum class ThemePreference { DARK, LIGHT, SYSTEM }
 
+enum class DataRetention(val days: Int?, val label: String) {
+    ONE_MONTH(30, "1 month"),
+    SIX_MONTHS(182, "6 months"),
+    ONE_YEAR(365, "1 year"),
+    FOREVER(null, "Keep forever"),
+}
+
+enum class MapStyle { STANDARD, SATELLITE, TERRAIN, NIGHT }
+
 /** Every user-configurable, persisted, app-wide setting. Ride-specific dashboard layout choice
  * lives here too (as a preset id) rather than as a fully custom profile editor -- see README for
  * why that scope was cut from this pass. */
@@ -37,6 +46,8 @@ data class UserSettings(
     val autoPauseEnabled: Boolean = true,
     val dashboardProfileId: String = "road",
     val useMockLocationForDevelopment: Boolean = false,
+    val dataRetention: DataRetention = DataRetention.FOREVER,
+    val mapStyle: MapStyle = MapStyle.STANDARD,
 )
 
 class SettingsRepository(private val context: Context) {
@@ -60,6 +71,8 @@ class SettingsRepository(private val context: Context) {
             autoPauseEnabled = prefs[Keys.AUTO_PAUSE_ENABLED] ?: true,
             dashboardProfileId = prefs[Keys.DASHBOARD_PROFILE_ID] ?: "road",
             useMockLocationForDevelopment = prefs[Keys.USE_MOCK_LOCATION] ?: false,
+            dataRetention = prefs[Keys.DATA_RETENTION]?.let { runCatching { DataRetention.valueOf(it) }.getOrNull() } ?: DataRetention.FOREVER,
+            mapStyle = prefs[Keys.MAP_STYLE]?.let { runCatching { MapStyle.valueOf(it) }.getOrNull() } ?: MapStyle.STANDARD,
         )
     }
 
@@ -83,6 +96,8 @@ class SettingsRepository(private val context: Context) {
     suspend fun updateAutoPauseEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.AUTO_PAUSE_ENABLED] = enabled }
     suspend fun updateDashboardProfileId(id: String) = context.dataStore.edit { it[Keys.DASHBOARD_PROFILE_ID] = id }
     suspend fun updateUseMockLocationForDevelopment(enabled: Boolean) = context.dataStore.edit { it[Keys.USE_MOCK_LOCATION] = enabled }
+    suspend fun updateDataRetention(retention: DataRetention) = context.dataStore.edit { it[Keys.DATA_RETENTION] = retention.name }
+    suspend fun updateMapStyle(style: MapStyle) = context.dataStore.edit { it[Keys.MAP_STYLE] = style.name }
 
     private object Keys {
         val RIDER_WEIGHT_KG = doublePreferencesKey("rider_weight_kg")
@@ -100,5 +115,7 @@ class SettingsRepository(private val context: Context) {
         val AUTO_PAUSE_ENABLED = booleanPreferencesKey("auto_pause_enabled")
         val DASHBOARD_PROFILE_ID = stringPreferencesKey("dashboard_profile_id")
         val USE_MOCK_LOCATION = booleanPreferencesKey("use_mock_location")
+        val DATA_RETENTION = stringPreferencesKey("data_retention")
+        val MAP_STYLE = stringPreferencesKey("map_style")
     }
 }

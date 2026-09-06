@@ -2,9 +2,11 @@ package com.cyclemonitor.app.settings
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cyclemonitor.app.BuildConfig
+import com.cyclemonitor.app.data.settings.DataRetention
+import com.cyclemonitor.app.data.settings.MapStyle
 import com.cyclemonitor.app.data.settings.ThemePreference
 import com.cyclemonitor.app.di.AppContainer
 import com.cyclemonitor.app.di.ViewModelFactory
@@ -26,12 +30,12 @@ import com.cyclemonitor.core.model.RidingPosition
 import com.cyclemonitor.core.units.DistanceUnit
 import com.cyclemonitor.core.units.ElevationUnit
 import com.cyclemonitor.core.units.SpeedUnit
-import java.util.Locale
 
 @Composable
-fun SettingsScreen(container: AppContainer) {
+fun SettingsScreen(container: AppContainer, onOpenDashboardCustomization: () -> Unit) {
     val viewModel: SettingsViewModel = viewModel(factory = ViewModelFactory { SettingsViewModel(container.settingsRepository) })
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val dashboardProfiles by container.dashboardProfileRepository.observeProfiles().collectAsStateWithLifecycle(initialValue = emptyList())
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
@@ -45,14 +49,19 @@ fun SettingsScreen(container: AppContainer) {
         SettingsChoiceRow("Theme", ThemePreference.entries, settings.theme, { it.name }, viewModel::setTheme)
 
         SettingsSectionHeader("DASHBOARD")
-        SettingsChoiceRow(
-            "Profile",
-            listOf("road", "climb", "race", "casual"),
-            settings.dashboardProfileId,
-            { it.replaceFirstChar { c -> c.titlecase(Locale.US) } },
-            viewModel::setDashboardProfileId,
-        )
+        if (dashboardProfiles.isNotEmpty()) {
+            SettingsChoiceRow(
+                "Profile",
+                dashboardProfiles,
+                dashboardProfiles.find { it.id == settings.dashboardProfileId } ?: dashboardProfiles.first(),
+                { it.name },
+                { viewModel.setDashboardProfileId(it.id) },
+            )
+        }
         SettingsChoiceRow("Animation intensity", AnimationIntensity.entries, settings.animationIntensity, { it.name }, viewModel::setAnimationIntensity)
+        Button(onClick = onOpenDashboardCustomization, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            Text("CUSTOMIZE DASHBOARD")
+        }
 
         SettingsSectionHeader("POWER")
         Text(
@@ -85,10 +94,15 @@ fun SettingsScreen(container: AppContainer) {
 
         SettingsSectionHeader("RIDE")
         SettingsSwitchRow("Auto-pause when stopped", settings.autoPauseEnabled, viewModel::setAutoPauseEnabled)
+        SettingsChoiceRow("Data retention", DataRetention.entries, settings.dataRetention, { it.label }, viewModel::setDataRetention)
 
-        SettingsSectionHeader("MAP")
+        SettingsSectionHeader("NAVIGATION")
+        SettingsChoiceRow("Map style", MapStyle.entries, settings.mapStyle, { it.name }, viewModel::setMapStyle)
         Text(
-            if (MapAvailability.isConfigured) "Google Maps is configured." else "No Maps API key configured -- map shows an unavailable state.",
+            when {
+                !MapAvailability.isConfigured -> "No Maps API key configured -- map shows an unavailable state."
+                else -> "Google Maps is configured. Turn-by-turn routing uses the Directions API (bicycling mode) with the same key; enable the Directions API for it in Google Cloud Console."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = CycleColors.TextSecondary,
         )

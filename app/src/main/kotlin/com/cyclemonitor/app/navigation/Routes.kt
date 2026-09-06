@@ -15,6 +15,7 @@ sealed class Screen(val route: String) {
     data object PersonalRecords : Screen("records")
     data object Flex : Screen("flex")
     data object Settings : Screen("settings")
+    data object DashboardCustomization : Screen("dashboard_customization")
     data object RideDetail : Screen("ride_detail/{rideId}") {
         fun createRoute(rideId: String) = "ride_detail/$rideId"
     }

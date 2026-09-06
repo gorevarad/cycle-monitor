@@ -43,6 +43,10 @@ still builds and runs fully -- the map panel just shows an explicit "MAP UNAVAIL
 instead of rendering, and ride recording is completely independent of the map either way (see
 `RideRecordingService`, which has no map dependency at all).
 
+The same key also drives real turn-by-turn routing (`GoogleDirectionsNavigationProvider`, bicycling
+mode) -- enable the **Directions API** for that key in Google Cloud Console in addition to the Maps
+SDK. Destination search uses Android's built-in `Geocoder`, which needs no separate key.
+
 ## IMPORTANT: what has and hasn't been verified
 
 This project was built in a sandboxed environment **with no Android SDK installed and no network
@@ -74,8 +78,10 @@ compiler flags (expect this to be mostly nothing-to-minor, since everything was 
 against the actual library APIs, but this genuinely has not been proven by a compiler yet), and
 run through the golden path on a device: grant location permission, start a ride (mock location
 is available via Settings > Developer in debug builds if you don't want to physically ride),
-watch the dashboard update, finish the ride, check it in History, open Ride Details, check
-Progress/Personal Records, and try a Flex Mode export.
+watch the dashboard update (including the startup reveal and gauge calibration sweep), try
+searching a destination and starting navigation, pause/resume, finish the ride and watch the
+summary animation, check it in History, open Ride Details, check Progress/Personal Records, try
+Dashboard Customization (Settings > Customize Dashboard), and try a Flex Mode export.
 
 ## Architecture notes / deliberate simplifications
 
@@ -93,17 +99,37 @@ Progress/Personal Records, and try a Flex Mode export.
   "UNAVAILABLE" per documented rules rather than showing a falsely precise number. See the
   class doc for the full list of assumptions.
 - **Navigation/routing**: `NavigationProvider` (route calculation) is deliberately separate from
-  the map display. Only a `StraightLineNavigationProvider` fallback is implemented -- real
-  cycling-aware turn-by-turn routing needs a routing backend (e.g. Google's Routes API with a
-  bicycling profile) that requires its own API key/billing and was out of scope to wire up
-  blind; the map panel itself is real Google Maps (Maps Compose) once an API key is configured.
-- **Dashboard customization** ships four presets (Road/Climb/Race/Casual) selectable in Settings,
-  not a full drag-and-drop profile editor -- `DashboardProfile` in `:core` is designed to support
-  arbitrary custom profiles later without changes to the ride engine or UI state shape.
-- **DashboardProfile / UserCyclingProfile** persistence uses DataStore Preferences rather than
-  Room, since they're small, mostly-singleton configuration rather than a growing dataset;
-  `Ride`/`TrackPoint` (the data that actually needs to scale and be queried) use Room as
-  specified.
+  the map display. `GoogleDirectionsNavigationProvider` calls the Directions API (bicycling mode)
+  directly over HTTP with `HttpURLConnection`/`org.json` (both built into the platform, so no extra
+  HTTP/JSON dependency), decodes the returned polyline, and surfaces distance/ETA/turn-by-turn
+  steps; `StraightLineNavigationProvider` is the fallback when no Maps key is configured. Rider-
+  facing UI is `routing/NavigationOverlay.kt` (destination search via Android's `Geocoder`, a
+  turn-by-turn banner with re-route/cancel) wired onto the map panel from `RideScreen`. What's
+  *not* implemented: off-route detection/automatic re-routing, live decrementing distance-remaining
+  as the rider actually moves along the route (the banner shows the calculated route's total
+  distance, refreshed only on manual re-route), and alternate-route selection.
+- **Dashboard customization** is Room-backed (`DashboardProfileEntity`/`DashboardProfileDao`,
+  seeded with the four presets on first run): `dashboard/DashboardCustomizationScreen.kt` lets you
+  show/hide metrics, reorder them (up/down, not drag-and-drop), set each gauge's max scale, pick an
+  accent color from the app's semantic palette, and duplicate/delete profiles. Custom profiles are
+  full `DashboardProfile` rows, not a restricted subset.
+- **UserCyclingProfile** (rider/bike parameters) persistence uses DataStore Preferences rather than
+  Room, since it's a single, small, always-present record rather than a growing dataset;
+  `Ride`/`TrackPoint`/`DashboardProfile` (data that scales or needs distinct rows) use Room.
+- **Premium animations**: a staggered dashboard reveal + one-shot gauge-arc calibration sweep
+  (`ride/ui/DashboardIntro.kt`, `GaugeCommon.kt`) stand in for a separate splash screen -- the real
+  dashboard elements fade/sweep in instead, so nothing ever blocks GPS/recording startup. Landscape
+  <-> portrait uses `Crossfade` instead of an abrupt destroy/recreate. `RideStartOverlay` and
+  `RideFinishOverlay` (`ride/ui/RideTransitionOverlays.kt`) cover the STARTING/GPS READY/DATA
+  READY/RIDING sequence and the ride-complete stat summary. All of it is driven by the
+  `AnimationIntensity` setting and is purely cosmetic -- it never delays recording, which begins in
+  `RideRecordingService` independently of whatever the UI is animating.
+- **Data retention**: a Settings choice (1 month/6 months/1 year/forever) pruned by
+  `RideRepository.deleteRidesOlderThan`, run once at app startup from `AppContainer`'s init block.
+  It is not a background job that re-checks periodically while the app is closed (no WorkManager
+  dependency added for this) -- it only runs when the app is opened.
+- **Map style**: Standard/Satellite/Terrain map directly via `MapType`; "Night" currently falls back
+  to Standard rather than shipping a hand-typed, unverified Google Maps JSON style array.
 - **Flex Mode's PNG export** uses plain `android.graphics` (Bitmap/Canvas/Paint), not a captured
   Compose composable, so the exported file's rendering doesn't depend on newer
   Compose-graphics-layer capture APIs -- the in-app preview is a close Compose approximation of
@@ -112,6 +138,14 @@ Progress/Personal Records, and try a Flex Mode export.
 - **Graphs** (Ride Details) are a small hand-rolled Canvas line chart with tap/drag inspection,
   not an external charting library, to avoid adding an unverified dependency for something this
   simple.
+
+## Explicitly out of scope
+
+- **BLE sensors** (cadence/heart-rate/power-meter pairing) -- scrapped per product decision, not
+  attempted.
+- App-level tests (Robolectric/instrumented) -- see "what hasn't been verified" above; this
+  environment cannot compile any Android-flavored module at all, Robolectric or not, since the
+  `compileSdk` platform stub jars themselves come from the same blocked Google Maven host.
 
 ## Testing
 

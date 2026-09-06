@@ -20,4 +20,7 @@ interface RideRepository {
     suspend fun deleteRide(rideId: String)
 
     suspend fun renameRide(rideId: String, newName: String)
+
+    /** Used by the Data Retention setting to prune rides older than the configured window. */
+    suspend fun deleteRidesOlderThan(cutoffMillis: Long)
 }

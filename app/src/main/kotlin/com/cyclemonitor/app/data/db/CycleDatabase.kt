@@ -6,13 +6,14 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [RideEntity::class, TrackPointEntity::class],
+    entities = [RideEntity::class, TrackPointEntity::class, DashboardProfileEntity::class],
     version = 1,
     exportSchema = true,
 )
 abstract class CycleDatabase : RoomDatabase() {
     abstract fun rideDao(): RideDao
     abstract fun trackPointDao(): TrackPointDao
+    abstract fun dashboardProfileDao(): DashboardProfileDao
 
     companion object {
         fun build(context: Context): CycleDatabase =
