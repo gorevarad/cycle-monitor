@@ -132,6 +132,11 @@ private fun MapWithNavigation(
     mapStyle: com.cyclemonitor.app.data.settings.MapStyle,
     modifier: Modifier = Modifier,
 ) {
+    LaunchedEffect(position?.latitude, position?.longitude, navState.isNavigating) {
+        if (!navState.isNavigating) return@LaunchedEffect
+        position?.let { navigationViewModel.updateCurrentPosition(RoutePoint(it.latitude, it.longitude)) }
+    }
+
     Box(modifier = modifier) {
         RideMapPanel(
             position = position,

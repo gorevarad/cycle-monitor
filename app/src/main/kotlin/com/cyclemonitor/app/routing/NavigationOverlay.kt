@@ -105,13 +105,14 @@ private fun NavigationBanner(
         }
         if (route != null) {
             Text(
-                route.steps.firstOrNull()?.instruction ?: "Continue toward destination",
+                state.currentStep?.instruction ?: "Continue toward destination",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CycleColors.TextSecondary,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 4.dp)) {
+                val remaining = state.remainingDistanceMeters ?: route.distanceMeters
                 Text(
-                    "${Formatters.distance(distanceUnit.fromMeters(route.distanceMeters), distanceUnit.symbol())} remaining",
+                    "${Formatters.distance(distanceUnit.fromMeters(remaining), distanceUnit.symbol())} remaining",
                     style = MaterialTheme.typography.bodySmall,
                     color = CycleColors.TextPrimary,
                 )
@@ -124,6 +125,13 @@ private fun NavigationBanner(
                     "Approximate direct line -- no routing backend configured",
                     style = MaterialTheme.typography.labelSmall,
                     color = CycleColors.StatusAmber,
+                )
+            }
+            if (state.isOffRoute) {
+                Text(
+                    "OFF ROUTE -- re-routing shortly",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = CycleColors.StatusOrange,
                 )
             }
         }

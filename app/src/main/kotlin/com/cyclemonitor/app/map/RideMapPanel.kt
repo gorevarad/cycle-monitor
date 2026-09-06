@@ -20,13 +20,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.cyclemonitor.app.R
 import com.cyclemonitor.app.data.settings.MapStyle
 import com.cyclemonitor.app.theme.CycleColors
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapType
@@ -68,8 +71,8 @@ private fun MapStyle.toMapType(): MapType = when (this) {
     MapStyle.STANDARD -> MapType.NORMAL
     MapStyle.SATELLITE -> MapType.SATELLITE
     MapStyle.TERRAIN -> MapType.TERRAIN
-    // A true night-mode JSON style wasn't included (see README) -- falls back to standard rather
-    // than fabricating an unverified style definition.
+    // Night is the normal road map type with a dark MapStyleOptions overlay (see below), not a
+    // distinct MapType.
     MapStyle.NIGHT -> MapType.NORMAL
 }
 
@@ -86,6 +89,8 @@ private fun GoogleMapContent(
         this.position = CameraPosition.fromLatLngZoom(defaultLatLng, 16f)
     }
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val nightStyleOptions = remember { MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_night) }
 
     LaunchedEffect(position?.latitude, position?.longitude) {
         val p = position ?: return@LaunchedEffect
@@ -96,7 +101,11 @@ private fun GoogleMapContent(
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState,
-            properties = MapProperties(isMyLocationEnabled = false, mapType = mapStyle.toMapType()),
+            properties = MapProperties(
+                isMyLocationEnabled = false,
+                mapType = mapStyle.toMapType(),
+                mapStyleOptions = if (mapStyle == MapStyle.NIGHT) nightStyleOptions else null,
+            ),
             uiSettings = MapUiSettings(
                 zoomControlsEnabled = false,
                 myLocationButtonEnabled = false,

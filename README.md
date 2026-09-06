@@ -54,7 +54,7 @@ access to Google's Maven repository** (`dl.google.com` / `maven.google.com` are 
 environment's egress policy). That means:
 
 - **`:core` is fully built and verified**: `./gradlew :core:test` actually runs in this
-  environment and all 86 tests pass. This covers distance calculation, GPS-quality
+  environment and all 99 tests pass. This covers distance calculation, GPS-quality
   classification, the power estimation model (including edge cases: GPS gaps/jumps, invalid
   coordinates, zero/extreme speed, coasting/descending, missing elevation, weak GPS), display
   smoothing, ride-state transitions, and statistics/personal-records aggregation.
@@ -104,10 +104,11 @@ Dashboard Customization (Settings > Customize Dashboard), and try a Flex Mode ex
   HTTP/JSON dependency), decodes the returned polyline, and surfaces distance/ETA/turn-by-turn
   steps; `StraightLineNavigationProvider` is the fallback when no Maps key is configured. Rider-
   facing UI is `routing/NavigationOverlay.kt` (destination search via Android's `Geocoder`, a
-  turn-by-turn banner with re-route/cancel) wired onto the map panel from `RideScreen`. What's
-  *not* implemented: off-route detection/automatic re-routing, live decrementing distance-remaining
-  as the rider actually moves along the route (the banner shows the calculated route's total
-  distance, refreshed only on manual re-route), and alternate-route selection.
+  turn-by-turn banner that advances through the route's steps as the rider covers each one's
+  distance, with live distance-remaining, re-route/cancel, and automatic re-routing when off-route
+  -- see `RouteProgress` below) wired onto the map panel from `RideScreen`. What's *not*
+  implemented: alternate-route selection, and the step-advance logic is distance-based (cumulative
+  step length), not a true "you've passed this turn" geometric check.
 - **Dashboard customization** is Room-backed (`DashboardProfileEntity`/`DashboardProfileDao`,
   seeded with the four presets on first run): `dashboard/DashboardCustomizationScreen.kt` lets you
   show/hide metrics, reorder them (up/down, not drag-and-drop), set each gauge's max scale, pick an
@@ -128,8 +129,13 @@ Dashboard Customization (Settings > Customize Dashboard), and try a Flex Mode ex
   `RideRepository.deleteRidesOlderThan`, run once at app startup from `AppContainer`'s init block.
   It is not a background job that re-checks periodically while the app is closed (no WorkManager
   dependency added for this) -- it only runs when the app is opened.
-- **Map style**: Standard/Satellite/Terrain map directly via `MapType`; "Night" currently falls back
-  to Standard rather than shipping a hand-typed, unverified Google Maps JSON style array.
+- **Map style**: Standard/Satellite/Terrain map directly via `MapType`; "Night" is the standard road
+  map with a dark `MapStyleOptions` JSON overlay (`res/raw/map_style_night.json`, validated as
+  well-formed JSON but -- like the rest of `:app` -- not rendered on an actual device here).
+- **Live navigation progress**: `core/navigation/RouteProgress.kt` (unit tested) computes distance
+  remaining along the route (nearest-vertex approximation, not a full perpendicular projection) and
+  detects when the rider has drifted off it; `RideNavigationViewModel` uses this to decrement the
+  banner's distance live and auto-re-route once the rider has been off-route for 15s.
 - **Flex Mode's PNG export** uses plain `android.graphics` (Bitmap/Canvas/Paint), not a captured
   Compose composable, so the exported file's rendering doesn't depend on newer
   Compose-graphics-layer capture APIs -- the in-app preview is a close Compose approximation of
@@ -149,13 +155,14 @@ Dashboard Customization (Settings > Customize Dashboard), and try a Flex Mode ex
 
 ## Testing
 
-`./gradlew :core:test` -- 86 tests, all passing in this environment. Covers:
+`./gradlew :core:test` -- 99 tests, all passing in this environment. Covers:
 GPS math (including invalid/null-island coordinates), GPS quality classification, the power
 model (steady state, climbing, descending/coasting, acceleration, GPS jitter/jumps, weak GPS,
 missing elevation, stale/large time gaps, rider-weight sensitivity), display smoothing (EMA
 behavior, windowed averages, gap handling), the ride engine (distance/time accumulation, pause
 handling, elevation-gain noise filtering, invalid-coordinate rejection, GPS gaps), the ride state
-machine (every legal/illegal transition), and statistics/personal-records aggregation (weighted
+machine (every legal/illegal transition), route progress (remaining distance, off-route detection,
+turn-by-turn step advancement), and statistics/personal-records aggregation (weighted
 averages, missing-data handling, calendar boundaries, excluding invalid rides).
 
 No `:app`-level tests exist yet since they'd need Robolectric/instrumented-test infra that
