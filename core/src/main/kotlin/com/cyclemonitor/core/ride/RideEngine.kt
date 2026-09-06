@@ -13,6 +13,9 @@ import com.cyclemonitor.core.smoothing.CumulativeAverage
 
 /** Live, continuously-updated stats for the currently recording ride. */
 data class RideLiveStats(
+    /** Timestamp of the sample that produced this snapshot -- lets display-layer smoothers use
+     * real elapsed time rather than wall-clock-at-processing. */
+    val timestampMillis: Long,
     val distanceMeters: Double,
     val movingTimeSeconds: Long,
     val totalTimeSeconds: Long,
@@ -26,6 +29,7 @@ data class RideLiveStats(
     val averagePowerWatts: Double?,
     val maxPowerWatts: Double?,
     val gpsQuality: GpsQuality,
+    val gpsAccuracyMeters: Float?,
 )
 
 /**
@@ -134,6 +138,7 @@ class RideEngine(
         )
 
         val liveStats = RideLiveStats(
+            timestampMillis = sample.timestampMillis,
             distanceMeters = distanceMeters,
             movingTimeSeconds = movingTimeSeconds,
             totalTimeSeconds = totalTimeSeconds,
@@ -146,6 +151,7 @@ class RideEngine(
             averagePowerWatts = averagePower.average,
             maxPowerWatts = maxPowerWatts,
             gpsQuality = GpsQuality.classify(sample.horizontalAccuracyMeters),
+            gpsAccuracyMeters = sample.horizontalAccuracyMeters,
         )
 
         lastSample = sample

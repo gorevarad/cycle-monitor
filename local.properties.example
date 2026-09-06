@@ -1,0 +1,10 @@
+# Copy this file to local.properties (which is gitignored) and fill in real values.
+# Android Studio will also write sdk.dir here automatically the first time you open the project.
+
+# sdk.dir=/path/to/Android/sdk
+
+# Google Maps Platform API key (Maps SDK for Android). Required for the map panel to render;
+# without it the app runs fine but shows an explicit "map unavailable" state everywhere the map
+# would appear. Get a key at:
+# https://developers.google.com/maps/documentation/android-sdk/get-api-key
+MAPS_API_KEY=
